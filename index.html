@@ -144,7 +144,9 @@ td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border)
 #apps tbody tr.selected { background: var(--sel); }
 #apps tbody tr.idle td { color: var(--muted); }
 .app { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.app .nm { overflow: hidden; text-overflow: ellipsis; max-width: 230px; font-weight: 500; }
+.app .nm { overflow: hidden; text-overflow: ellipsis; max-width: 200px; font-weight: 500; }
+td.rt { line-height: 1.25; font-size: 12px; }
+td.rt .o { color: var(--ink-2); }
 .ic { width: 22px; height: 22px; border-radius: 6px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
 .ic img { width: 22px; height: 22px; display: block; }
 .ic.big, .ic.big img { width: 40px; height: 40px; font-size: 18px; border-radius: 10px; }
@@ -254,7 +256,7 @@ footer { font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.
             <th class="sort" data-sort="in"><span class="sw down"></span> ↓ Now</th>
             <th class="sort" data-sort="out"><span class="sw up"></span> ↑ Now</th>
             <th>Last 60 s</th>
-            <th class="sort" data-sort="total">Total ↓ / ↑</th>
+            <th class="sort" data-sort="total">Total</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -502,7 +504,7 @@ function attachHover(canvas, redraw) {
   canvas.addEventListener("mouseleave", () => { canvas._hover = null; tip.style.display = "none"; redraw(); });
 }
 function drawSpark(canvas, a, b) {
-  const dpr = window.devicePixelRatio || 1, W = 110, H = 26;
+  const dpr = window.devicePixelRatio || 1, W = 88, H = 26;
   if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.width = W + "px"; canvas.style.height = H + "px"; }
   const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
   const n = 60; let max = 2000;
@@ -609,7 +611,7 @@ function renderSpeed() {
   if (sp.state === "error") err.textContent = "Speed test failed: " + sp.error;
   if (running) {
     const e = sp.elapsed || 0;
-    st.textContent = (e < 23 ? "Measuring download…" : "Measuring upload…") + ` ${Math.round(e)} s`;
+    st.textContent = `Measuring download & upload… ${Math.round(e)} s`;
     prog.firstElementChild.style.width = Math.min(97, (e / 46) * 100) + "%";
   } else st.textContent = "";
   if (S.lastSpeedState === "running" && sp.state !== "running") loadSpeedtests();
@@ -667,7 +669,7 @@ function renderApps() {
     tr.classList.toggle("idle", a.in + a.out === 0);
     tr.querySelector(".ri").innerHTML = a.in ? fmtRate(a.in) : '<span class="zero">–</span>';
     tr.querySelector(".ro").innerHTML = a.out ? fmtRate(a.out) : '<span class="zero">–</span>';
-    tr.querySelector(".rt").textContent = `${fmtBytes(a.tot_in)} / ${fmtBytes(a.tot_out)}`;
+    tr.querySelector(".rt").innerHTML = `<div>↓ ${fmtBytes(a.tot_in)}</div><div class="o">↑ ${fmtBytes(a.tot_out)}</div>`;
     drawSpark(tr.querySelector("canvas"), a.spark_in, a.spark_out);
     tb.appendChild(tr);
   }

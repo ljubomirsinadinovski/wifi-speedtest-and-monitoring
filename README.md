@@ -6,6 +6,8 @@ You can record an app's traffic during a call and compare recordings side by sid
 
 macOS only. There's nothing to install: it uses Python 3 and tools built into macOS.
 
+![Wi-Fi Monitor demo: running a speed test, selecting an app, recording its traffic and comparing it](docs/demo.gif)
+
 ## Features
 
 - **Per-app traffic:** live download/upload rate, a 60-second sparkline and totals for every app.
