@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wi-Fi Monitor</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f1f0ec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --down: #2a78d6;
+  --up: #eb6834;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --sel: rgba(42,120,214,0.10);
+  --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #242423;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --down: #3987e5;
+    --up: #d95926;
+    --good-text: #0ca30c;
+    --sel: rgba(57,135,229,0.16);
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #242423; --ink: #f0efec; --ink-2: #c3c2b7;
+  --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --down: #3987e5; --up: #d95926; --good-text: #0ca30c; --sel: rgba(57,135,229,0.16); --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1440px; margin: 0 auto; padding: 20px 24px 40px; }
+header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+header h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+.live { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13px; }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 20%, transparent); }
+.live.off .dot { background: var(--critical); box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 20%, transparent); }
+.spacer { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 5px 11px; font: inherit; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.seg button.on { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.primary { background: var(--down); border-color: transparent; color: #fff; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.rec { background: var(--critical); border-color: transparent; color: #fff; font-weight: 600; }
+.btn.ghost { border-color: transparent; background: none; color: var(--ink-2); padding: 4px 6px; }
+.btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
+
+.grid-top { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+.grid-main { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+@media (max-width: 1050px) { .grid-top, .grid-main { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); min-width: 0; }
+.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 0 0 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.card h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); }
+.muted { color: var(--muted); }
+.ink2 { color: var(--ink-2); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* hero numbers */
+.heroes { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 8px; }
+.hero .lab { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.hero .val { font-size: 34px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; }
+.hero .val small { font-size: 15px; font-weight: 500; color: var(--ink-2); margin-left: 4px; letter-spacing: 0; }
+.hero.sm .val { font-size: 24px; }
+.hero.sm .val small { font-size: 13px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.sw.down { background: var(--down); }
+.sw.up { background: var(--up); }
+.arrow { font-weight: 700; }
+
+.chart-box { position: relative; }
+.chart-box canvas { display: block; width: 100%; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); white-space: nowrap; display: none; z-index: 5; }
+.tip .row { display: flex; align-items: center; gap: 6px; }
+.tip .t { color: var(--muted); margin-bottom: 2px; }
+.foot { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; font-size: 12.5px; color: var(--ink-2); }
+
+/* wifi link */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; margin-bottom: 14px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; color: var(--ink); }
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; vertical-align: -2px; margin-right: 6px; }
+.bars i { width: 4px; background: var(--grid); border-radius: 1px; }
+.bars i.on { background: var(--ink-2); }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 1px 8px 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-weight: 500; }
+.badge .d { width: 7px; height: 7px; border-radius: 50%; }
+hr.sep { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 10px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 9px 12px; }
+.tile .lab { font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.tile .val { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+.tile .val small { font-size: 12px; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+.progress { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+.progress > div { height: 100%; width: 0; background: var(--down); border-radius: 99px; transition: width .9s linear; }
+.hist-list { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
+.hist-list div { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid var(--border); }
+.err { color: var(--critical); font-size: 13px; margin-top: 8px; }
+
+/* apps table */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.search { flex: 1; min-width: 160px; border: 1px solid var(--border); background: var(--page); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th.l, td.l { text-align: left; }
+th.sort { cursor: pointer; }
+th.sort:hover { color: var(--ink); }
+th.sorted { color: var(--ink); font-weight: 600; }
+td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#apps tbody tr { cursor: pointer; }
+#apps tbody tr:hover { background: var(--surface-2); }
+#apps tbody tr.selected { background: var(--sel); }
+#apps tbody tr.idle td { color: var(--muted); }
+.app { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.app .nm { overflow: hidden; text-overflow: ellipsis; max-width: 230px; font-weight: 500; }
+.ic { width: 22px; height: 22px; border-radius: 6px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+.ic img { width: 22px; height: 22px; display: block; }
+.ic.big, .ic.big img { width: 40px; height: 40px; font-size: 18px; border-radius: 10px; }
+.tag { font-size: 10.5px; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-weight: 500; }
+td canvas.spark { display: block; margin-left: auto; }
+.zero { color: var(--muted); }
+.empty { text-align: center; color: var(--muted); padding: 28px 8px; }
+
+/* detail */
+.det-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.det-head h3 { margin: 0; font-size: 18px; font-weight: 650; }
+.det-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 10px; }
+.det-stats .tile .val { font-size: 15px; font-weight: 600; display: flex; flex-direction: column; gap: 1px; }
+.det-stats .tile .val span { display: flex; align-items: center; gap: 6px; }
+.recbox { border: 1px dashed var(--axis); border-radius: 10px; padding: 12px; margin: 12px 0; }
+.recbox.on { border-style: solid; border-color: var(--critical); }
+.recbox .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.recbox input { flex: 1; min-width: 150px; border: 1px solid var(--border); background: var(--page); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; }
+.recdot { width: 10px; height: 10px; border-radius: 50%; background: var(--critical); animation: pulse 1.2s infinite; flex: none; }
+@keyframes pulse { 50% { opacity: .3; } }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.conns { max-height: 300px; overflow: auto; }
+.conns td, .conns th { padding: 4px 6px; font-size: 12px; }
+.host { color: var(--muted); max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+
+/* recordings */
+.cmpbar { height: 6px; border-radius: 0 3px 3px 0; margin-top: 3px; min-width: 2px; }
+.cmpbar.down { background: var(--down); }
+.cmpbar.up { background: var(--up); }
+.cmpcell { min-width: 150px; }
+.cmpcell .line { display: flex; align-items: center; gap: 8px; justify-content: flex-start; }
+.cmpcell .line .v { width: 92px; text-align: right; flex: none; }
+.cmpcell .line .b { flex: 1; }
+.best { font-size: 11px; color: var(--good-text); font-weight: 600; margin-left: 6px; }
+footer { font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
+.banner { background: color-mix(in srgb, var(--warning) 18%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warning) 50%, transparent); border-radius: 10px; padding: 8px 12px; margin-bottom: 14px; font-size: 13px; display: none; }
+@media (max-width: 640px) {
+  .wrap { padding: 14px 16px 30px; }
+  .hero .val { font-size: 28px; }
+  .det-stats { grid-template-columns: minmax(0,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Wi-Fi Monitor</h1>
+    <span class="live" id="live"><span class="dot"></span><span id="liveTxt">connecting…</span></span>
+    <span class="spacer"></span>
+    <span class="muted" style="font-size:13px">Units</span>
+    <div class="seg" id="unitSeg">
+      <button data-u="bits">kbps / Mbps</button>
+      <button data-u="bytes">KB/s / MB/s</button>
+    </div>
+    <button class="btn" id="resetBtn" title="Reset all 'total' counters to zero">Reset totals</button>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="grid-top">
+    <section class="card">
+      <h2>All Wi-Fi traffic <span class="sub" id="ifaceSub"></span></h2>
+      <div class="heroes">
+        <div class="hero"><div class="lab"><span class="sw down"></span><span class="arrow">↓</span> Download now</div><div class="val num" id="totIn">–</div></div>
+        <div class="hero"><div class="lab"><span class="sw up"></span><span class="arrow">↑</span> Upload now</div><div class="val num" id="totOut">–</div></div>
+      </div>
+      <div class="chart-box"><canvas id="totalChart" data-h="210" style="height:210px"></canvas><div class="tip"></div></div>
+      <div class="foot">
+        <span>Since start: <b class="num" id="sumIn">–</b> down, <b class="num" id="sumOut">–</b> up</span>
+        <span id="since"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Wi-Fi link</h2>
+      <dl class="kv" id="wifiKv"><dt>Status</dt><dd class="muted">reading…</dd></dl>
+      <hr class="sep">
+      <h2 style="margin-bottom:6px">Speed test <span class="sub">Apple networkQuality</span></h2>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+        <button class="btn primary" id="speedBtn">Run speed test</button>
+        <span class="muted" id="speedState" style="font-size:13px"></span>
+      </div>
+      <div class="progress" id="speedProg" style="display:none"><div></div></div>
+      <div id="speedErr" class="err" style="display:none"></div>
+      <div class="tiles" id="speedTiles" style="display:none">
+        <div class="tile"><div class="lab"><span class="sw down"></span>Download</div><div class="val num" id="stDown">–</div></div>
+        <div class="tile"><div class="lab"><span class="sw up"></span>Upload</div><div class="val num" id="stUp">–</div></div>
+        <div class="tile"><div class="lab">Idle latency</div><div class="val num" id="stLat">–</div></div>
+        <div class="tile"><div class="lab" title="Round-trips per minute while the line is busy. Higher is better; under 200 means calls may stutter when something else is downloading.">Responsiveness ⓘ</div><div class="val num" id="stRpm">–</div></div>
+      </div>
+      <div class="hist-list" id="speedHist"></div>
+    </section>
+  </div>
+
+  <div class="grid-main">
+    <section class="card">
+      <h2>Traffic by app <span class="sub">click an app for details &amp; recording</span></h2>
+      <div class="toolbar">
+        <input class="search" id="search" placeholder="Filter apps…" autocomplete="off">
+        <label class="chk"><input type="checkbox" id="hideSys"> Hide system services</label>
+        <label class="chk"><input type="checkbox" id="showIdle"> Show idle</label>
+      </div>
+      <div class="tbl-wrap">
+        <table id="apps">
+          <thead><tr>
+            <th class="l">App</th>
+            <th class="sort" data-sort="in"><span class="sw down"></span> ↓ Now</th>
+            <th class="sort" data-sort="out"><span class="sw up"></span> ↑ Now</th>
+            <th>Last 60 s</th>
+            <th class="sort" data-sort="total">Total ↓ / ↑</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="appsEmpty" style="display:none">No network activity yet…</div>
+    </section>
+
+    <section class="card" id="detail">
+      <div class="empty" id="detEmpty">
+        Select an app on the left to see its live chart and connections,<br>and to record a call for comparison.
+      </div>
+      <div id="detBody" style="display:none">
+        <div class="det-head">
+          <span id="detIcon"></span>
+          <div style="min-width:0">
+            <h3 id="detName"></h3>
+            <div class="muted" style="font-size:12.5px" id="detSub"></div>
+          </div>
+        </div>
+        <div class="det-stats">
+          <div class="tile"><div class="lab">Now</div><div class="val num"><span><span class="sw down"></span><b id="dNowIn"></b></span><span><span class="sw up"></span><b id="dNowOut"></b></span></div></div>
+          <div class="tile"><div class="lab">60-second average</div><div class="val num"><span><span class="sw down"></span><b id="dAvgIn"></b></span><span><span class="sw up"></span><b id="dAvgOut"></b></span></div></div>
+          <div class="tile"><div class="lab">Data since start</div><div class="val num"><span><span class="sw down"></span><b id="dTotIn"></b></span><span><span class="sw up"></span><b id="dTotOut"></b></span></div></div>
+        </div>
+        <div class="chart-box"><canvas id="appChart" data-h="170" style="height:170px"></canvas><div class="tip"></div></div>
+
+        <div class="recbox" id="recBox"></div>
+
+        <h2 style="margin-top:14px">Connections <span class="sub">active in the last minute</span></h2>
+        <div class="conns">
+          <table>
+            <thead><tr><th class="l">Proto</th><th class="l">Remote</th><th class="l">Host</th><th>↓ Now</th><th>↑ Now</th><th>Total</th></tr></thead>
+            <tbody id="connBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Recordings — compare apps <span class="sub">e.g. a WhatsApp call vs. a Telegram call</span></h2>
+    <div class="tbl-wrap">
+      <table id="recs">
+        <thead><tr>
+          <th class="l">Recording</th>
+          <th>Length</th>
+          <th class="l">Average rate</th>
+          <th>Peak ↓ / ↑</th>
+          <th>Data used</th>
+          <th>Per hour</th>
+          <th>Shape</th>
+          <th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="empty" id="recsEmpty">No recordings yet. Select an app, start a call, press <b>Start recording</b>, talk for a minute or two, then <b>Stop &amp; save</b>.</div>
+  </section>
+
+  <footer>
+    Per-app numbers come from macOS <code>nettop</code> and exclude localhost traffic. “All Wi-Fi traffic” is the raw byte counter of the Wi-Fi interface.
+    If a VPN is on, an app’s traffic is counted under the app <i>and</i> again (encrypted) under the VPN process.
+    FaceTime calls show as “FaceTime / Apple calls” (the <code>avconferenced</code> service). Recordings are saved to <code>recordings.json</code> next to the script.
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("wifimon." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("wifimon." + k, JSON.stringify(v)); } catch {} },
+};
+
+const S = {
+  unit: store.get("unit", "bits"),
+  sel: store.get("sel", null),
+  hideSys: store.get("hideSys", true),
+  showIdle: store.get("showIdle", false),
+  sort: store.get("sort", "now"),
+  filter: "",
+  snap: null, totalHist: null, selHist: null,
+  ema: new Map(), rows: new Map(), iconFail: new Set(),
+  recordings: [], speedtests: [], lastSpeedState: null,
+};
+
+/* ---------------- formatting ---------------- */
+function rateParts(Bps) {
+  Bps = Math.max(0, Bps || 0);
+  if (S.unit === "bits") {
+    const b = Bps * 8;
+    if (b < 1000) return [b.toFixed(0), "bps"];
+    if (b < 1e6) return [(b / 1e3).toFixed(b < 1e4 ? 1 : 0), "kbps"];
+    if (b < 1e9) return [(b / 1e6).toFixed(b < 1e7 ? 2 : 1), "Mbps"];
+    return [(b / 1e9).toFixed(2), "Gbps"];
+  }
+  if (Bps < 1000) return [Bps.toFixed(0), "B/s"];
+  if (Bps < 1e6) return [(Bps / 1e3).toFixed(Bps < 1e4 ? 1 : 0), "KB/s"];
+  if (Bps < 1e9) return [(Bps / 1e6).toFixed(Bps < 1e7 ? 2 : 1), "MB/s"];
+  return [(Bps / 1e9).toFixed(2), "GB/s"];
+}
+const fmtRate = Bps => rateParts(Bps).join(" ");
+const heroRate = Bps => { const [v, u] = rateParts(Bps); return `${v}<small>${u}</small>`; };
+function fmtBytes(B) {
+  B = B || 0;
+  if (B < 1000) return B.toFixed(0) + " B";
+  if (B < 1e6) return (B / 1e3).toFixed(B < 1e4 ? 1 : 0) + " KB";
+  if (B < 1e9) return (B / 1e6).toFixed(B < 1e7 ? 2 : 1) + " MB";
+  return (B / 1e9).toFixed(2) + " GB";
+}
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`;
+}
+function fmtWhen(ts) {
+  const d = new Date(ts * 1000), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === now.toDateString() ? `today ${time}` : `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+}
+function hueFor(name) { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function iconHTML(app, big) {
+  const cls = "ic" + (big ? " big" : "");
+  if (app.icon && !S.iconFail.has(app.key)) {
+    return `<span class="${cls}"><img alt="" src="/api/icon?key=${encodeURIComponent(app.key)}" data-key="${esc(app.key)}" onerror="iconErr(this)"></span>`;
+  }
+  return letterIcon(app.name, cls);
+}
+function letterIcon(name, cls) {
+  return `<span class="${cls}" style="background:hsl(${hueFor(name)} 35% 48%)">${esc((name.trim()[0] || "?").toUpperCase())}</span>`;
+}
+window.iconErr = img => {
+  const key = img.dataset.key; S.iconFail.add(key);
+  const span = img.parentElement; const big = span.classList.contains("big");
+  span.outerHTML = letterIcon(key, "ic" + (big ? " big" : ""));
+};
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+/* ---------------- charts ---------------- */
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+function axisLabel(Bps, topBps) {
+  const fac = S.unit === "bits" ? 8 : 1, v = Bps * fac, top = topBps * fac;
+  const units = S.unit === "bits" ? ["bps", "kbps", "Mbps", "Gbps"] : ["B/s", "KB/s", "MB/s", "GB/s"];
+  let i = 0, d = 1; while (top / d >= 1000 && i < 3) { d *= 1000; i++; }
+  const x = v / d;
+  return (Number.isInteger(x) ? x : x.toFixed(x < 10 ? 1 : 0)) + " " + units[i];
+}
+/* series: [{t:[], v:[], color, label}] ; window [t0,t1] */
+function drawChart(canvas, series, t0, t1, hoverIdx) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = +canvas.dataset.h || 200;
+  if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const padL = 66, padR = 8, padT = 8, padB = 20;
+  const pw = W - padL - padR, ph = H - padT - padB;
+  let max = 0;
+  for (const s of series) for (let i = 0; i < s.v.length; i++) if (s.t[i] >= t0 && s.v[i] > max) max = s.v[i];
+  max = Math.max(max, 1250); // floor ≈ 10 kbps so an idle line stays flat
+  const fac = S.unit === "bits" ? 8 : 1;
+  const step = niceStep((max * fac) / 4) / fac;
+  const top = Math.ceil(max / step) * step;
+  const X = t => padL + ((t - t0) / (t1 - t0)) * pw;
+  const Y = v => padT + ph - (v / top) * ph;
+  const grid = cssVar("--grid"), axis = cssVar("--axis"), muted = cssVar("--muted"), surf = cssVar("--surface");
+  ctx.font = "11px system-ui, -apple-system, sans-serif";
+  ctx.textBaseline = "middle";
+  // gridlines + y labels
+  for (let v = 0; v <= top + 1e-9; v += step) {
+    const y = Math.round(Y(v)) + 0.5;
+    ctx.strokeStyle = v === 0 ? axis : grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = "right";
+    ctx.fillText(axisLabel(v, top), padL - 8, y);
+  }
+  // x labels
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  const span = t1 - t0, every = span > 200 ? 60 : span > 100 ? 30 : 10;
+  for (let s = 0; s <= span; s += every) {
+    const x = X(t1 - s);
+    ctx.fillStyle = muted;
+    ctx.textAlign = s === 0 ? "right" : "center";
+    ctx.fillText(s === 0 ? "now" : `−${s >= 60 ? (s / 60) + "m" : s + "s"}`, s === 0 ? W - padR : x, H - 5);
+  }
+  // series: area + line, breaking on gaps > 3 s
+  for (const s of series) {
+    const segs = []; let cur = [];
+    for (let i = 0; i < s.t.length; i++) {
+      if (s.t[i] < t0 - 2) continue;
+      if (cur.length && s.t[i] - s.t[i - 1] > 3.5) { segs.push(cur); cur = []; }
+      cur.push(i);
+    }
+    if (cur.length) segs.push(cur);
+    for (const seg of segs) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(padL, padT - 2, pw, ph + 4); ctx.clip();
+      ctx.beginPath();
+      seg.forEach((i, k) => { const x = X(s.t[i]), y = Y(s.v[i]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
+      ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.stroke();
+      ctx.lineTo(X(s.t[seg[seg.length - 1]]), Y(0)); ctx.lineTo(X(s.t[seg[0]]), Y(0)); ctx.closePath();
+      ctx.globalAlpha = 0.10; ctx.fillStyle = s.color; ctx.fill();
+      ctx.restore();
+    }
+  }
+  // hover crosshair
+  canvas._geo = { X, Y, t0, t1, padL, padR, W, series };
+  if (hoverIdx != null && series[0] && series[0].t[hoverIdx] != null) {
+    const t = series[0].t[hoverIdx], x = X(t);
+    ctx.strokeStyle = axis; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, padT); ctx.lineTo(Math.round(x) + 0.5, padT + ph); ctx.stroke();
+    for (const s of series) {
+      const v = s.v[hoverIdx]; if (v == null) continue;
+      ctx.beginPath(); ctx.arc(x, Y(v), 4, 0, Math.PI * 2);
+      ctx.fillStyle = s.color; ctx.fill(); ctx.strokeStyle = surf; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+}
+function attachHover(canvas, redraw) {
+  const tip = canvas.parentElement.querySelector(".tip");
+  canvas.addEventListener("mousemove", e => {
+    const g = canvas._geo; if (!g || !g.series[0]) return;
+    const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left;
+    if (mx < g.padL - 4) { canvas._hover = null; tip.style.display = "none"; redraw(); return; }
+    const tAt = g.t0 + ((mx - g.padL) / (g.W - g.padL - g.padR)) * (g.t1 - g.t0);
+    const ts = g.series[0].t; let best = null, bd = 1e9;
+    for (let i = 0; i < ts.length; i++) { const d = Math.abs(ts[i] - tAt); if (d < bd) { bd = d; best = i; } }
+    if (best == null || bd > 3) { canvas._hover = null; tip.style.display = "none"; redraw(); return; }
+    canvas._hover = best; redraw();
+    const ago = Math.round(g.t1 - ts[best]);
+    tip.innerHTML = `<div class="t">${ago <= 0 ? "now" : ago + " s ago"}</div>` +
+      g.series.map(s => `<div class="row"><span class="sw" style="background:${s.color}"></span>${s.label} <b class="num">${fmtRate(s.v[best])}</b></div>`).join("");
+    tip.style.display = "block";
+    const x = g.X(ts[best]); const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(x + 12, 0), r.width - tw - 4) + (x + 12 + tw > r.width ? -(tw + 24) : 0) + "px";
+    tip.style.top = "6px";
+  });
+  canvas.addEventListener("mouseleave", () => { canvas._hover = null; tip.style.display = "none"; redraw(); });
+}
+function drawSpark(canvas, a, b) {
+  const dpr = window.devicePixelRatio || 1, W = 110, H = 26;
+  if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.width = W + "px"; canvas.style.height = H + "px"; }
+  const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  const n = 60; let max = 2000;
+  for (const v of a) max = Math.max(max, v); for (const v of b) max = Math.max(max, v);
+  ctx.strokeStyle = cssVar("--grid"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, H - 0.5); ctx.lineTo(W, H - 0.5); ctx.stroke();
+  const line = (arr, color) => {
+    if (!arr.length) return;
+    const off = n - arr.length;
+    ctx.beginPath();
+    arr.forEach((v, i) => { const x = ((off + i) / (n - 1)) * (W - 2) + 1, y = H - 2 - (v / max) * (H - 5); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.stroke();
+  };
+  line(b, cssVar("--up")); line(a, cssVar("--down"));
+}
+function drawCurve(canvas, a, b) {
+  const dpr = window.devicePixelRatio || 1, W = 120, H = 30;
+  canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let max = 1000; for (const v of a) max = Math.max(max, v); for (const v of b) max = Math.max(max, v);
+  const line = (arr, color) => {
+    if (arr.length < 2) return;
+    ctx.beginPath();
+    arr.forEach((v, i) => { const x = (i / (arr.length - 1)) * (W - 2) + 1, y = H - 2 - (v / max) * (H - 5); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.stroke();
+  };
+  line(b, cssVar("--up")); line(a, cssVar("--down"));
+}
+
+/* ---------------- API ---------------- */
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+/* ---------------- rendering ---------------- */
+const totalCanvas = $("#totalChart"), appCanvas = $("#appChart");
+function renderTotalChart() {
+  const h = S.totalHist; if (!h) return;
+  const t1 = h.t.length ? h.t[h.t.length - 1] : S.snap.now, t0 = t1 - 300;
+  drawChart(totalCanvas, [
+    { t: h.t, v: h.in, color: cssVar("--down"), label: "↓ Download" },
+    { t: h.t, v: h.out, color: cssVar("--up"), label: "↑ Upload" },
+  ], t0, t1, totalCanvas._hover);
+}
+function renderAppChart() {
+  const h = S.selHist; if (!h || !S.totalHist) return;
+  const th = S.totalHist.t;
+  const t1 = th.length ? th[th.length - 1] : S.snap.now, t0 = t1 - 300;
+  drawChart(appCanvas, [
+    { t: h.t, v: h.in, color: cssVar("--down"), label: "↓ Download" },
+    { t: h.t, v: h.out, color: cssVar("--up"), label: "↑ Upload" },
+  ], t0, t1, appCanvas._hover);
+}
+attachHover(totalCanvas, renderTotalChart);
+attachHover(appCanvas, renderAppChart);
+
+function renderHeader() {
+  const s = S.snap;
+  $("#live").classList.toggle("off", !s || !s.nettop_ok);
+  $("#liveTxt").textContent = !s ? "server not reachable" : s.nettop_ok ? "live" : "starting nettop…";
+  $("#totIn").innerHTML = heroRate(s.total.in);
+  $("#totOut").innerHTML = heroRate(s.total.out);
+  $("#sumIn").textContent = fmtBytes(s.total.tot_in);
+  $("#sumOut").textContent = fmtBytes(s.total.tot_out);
+  $("#ifaceSub").textContent = `interface ${s.iface}`;
+  $("#since").textContent = `monitoring for ${fmtDur(s.uptime)}`;
+  document.title = `↓ ${fmtRate(s.total.in)} ↑ ${fmtRate(s.total.out)} · Wi-Fi Monitor`;
+}
+
+function signalInfo(rssi) {
+  if (rssi == null) return null;
+  if (rssi >= -55) return { label: "Excellent", bars: 4, color: "var(--good)" };
+  if (rssi >= -67) return { label: "Good", bars: 3, color: "var(--good)" };
+  if (rssi >= -75) return { label: "Fair", bars: 2, color: "var(--warning)" };
+  return { label: "Weak", bars: 1, color: "var(--critical)" };
+}
+function renderWifi() {
+  const w = S.snap.wifi, kv = $("#wifiKv");
+  if (!w) { kv.innerHTML = `<dt>Status</dt><dd class="muted">reading Wi-Fi details…</dd>`; return; }
+  if (!w.connected) { kv.innerHTML = `<dt>Status</dt><dd>Not connected</dd>`; return; }
+  const si = signalInfo(w.rssi);
+  const bars = si ? `<span class="bars">${[6, 9, 12, 14].map((h, i) => `<i class="${i < si.bars ? "on" : ""}" style="height:${h}px"></i>`).join("")}</span>` : "";
+  const rows = [];
+  if (w.ssid) rows.push(["Network", esc(w.ssid)]);
+  if (si) rows.push(["Signal", `${bars}<b class="num">${w.rssi} dBm</b> <span class="badge"><span class="d" style="background:${si.color}"></span>${si.label}</span>`]);
+  if (w.noise != null && w.rssi != null) rows.push(["Noise / SNR", `<span class="num">${w.noise} dBm · ${w.rssi - w.noise} dB</span>`]);
+  if (w.channel) rows.push(["Channel", esc(w.channel)]);
+  if (w.phy) rows.push(["Standard", esc(w.phy)]);
+  if (w.tx_rate != null) rows.push(["Link rate", `<span class="num">${w.tx_rate} Mbps</span> <span class="muted">(max the radio can do now)</span>`]);
+  if (w.security) rows.push(["Security", esc(w.security)]);
+  kv.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+}
+
+function renderSpeed() {
+  const sp = S.snap.speed, btn = $("#speedBtn"), st = $("#speedState"), prog = $("#speedProg"), err = $("#speedErr");
+  const running = sp.state === "running";
+  btn.disabled = running;
+  btn.textContent = running ? "Testing…" : "Run speed test";
+  prog.style.display = running ? "block" : "none";
+  err.style.display = sp.state === "error" ? "block" : "none";
+  if (sp.state === "error") err.textContent = "Speed test failed: " + sp.error;
+  if (running) {
+    const e = sp.elapsed || 0;
+    st.textContent = (e < 23 ? "Measuring download…" : "Measuring upload…") + ` ${Math.round(e)} s`;
+    prog.firstElementChild.style.width = Math.min(97, (e / 46) * 100) + "%";
+  } else st.textContent = "";
+  if (S.lastSpeedState === "running" && sp.state !== "running") loadSpeedtests();
+  S.lastSpeedState = sp.state;
+}
+function renderSpeedResults() {
+  const list = S.speedtests; const last = list[list.length - 1];
+  $("#speedTiles").style.display = last ? "grid" : "none";
+  if (last) {
+    const mb = bps => `${(bps / 1e6).toFixed(bps < 1e7 ? 1 : 0)}<small>Mbps</small>`;
+    $("#stDown").innerHTML = mb(last.down_bps || 0);
+    $("#stUp").innerHTML = mb(last.up_bps || 0);
+    $("#stLat").innerHTML = last.latency_ms != null ? `${Math.round(last.latency_ms)}<small>ms</small>` : "–";
+    const rpm = Math.round(Math.min(last.dl_rpm || 0, last.ul_rpm || last.dl_rpm || 0));
+    $("#stRpm").innerHTML = rpm ? `${rpm}<small>RPM</small>` : "–";
+  }
+  $("#speedHist").innerHTML = list.slice(-5).reverse().map((r, i) =>
+    `<div><span>${i === 0 ? "<b>Latest</b> · " : ""}${fmtWhen(r.time)}</span><span class="num">↓ ${(r.down_bps / 1e6).toFixed(1)} · ↑ ${(r.up_bps / 1e6).toFixed(1)} Mbps · ${Math.round(r.latency_ms || 0)} ms</span></div>`).join("");
+}
+
+function renderApps() {
+  const apps = S.snap.apps;
+  // smoothed rate for a stable sort order
+  for (const a of apps) {
+    const r = a.in + a.out, prev = S.ema.get(a.key);
+    S.ema.set(a.key, prev == null ? r : prev * 0.7 + r * 0.3);
+  }
+  const f = S.filter.toLowerCase();
+  let list = apps.filter(a =>
+    (!S.hideSys || !a.system || a.key === S.sel) &&
+    (S.showIdle || a.idle < 60 || a.key === S.sel) &&
+    (!f || a.name.toLowerCase().includes(f)));
+  const key = S.sort;
+  list.sort((x, y) => {
+    if (key === "total") return (y.tot_in + y.tot_out) - (x.tot_in + x.tot_out);
+    if (key === "in") return y.in - x.in || (S.ema.get(y.key) - S.ema.get(x.key));
+    if (key === "out") return y.out - x.out || (S.ema.get(y.key) - S.ema.get(x.key));
+    return (S.ema.get(y.key) - S.ema.get(x.key)) || ((y.tot_in + y.tot_out) - (x.tot_in + x.tot_out));
+  });
+  document.querySelectorAll("#apps th.sort").forEach(th => th.classList.toggle("sorted", th.dataset.sort === key));
+  const tb = $("#apps tbody"), seen = new Set();
+  for (const a of list) {
+    seen.add(a.key);
+    let tr = S.rows.get(a.key);
+    if (!tr) {
+      tr = document.createElement("tr");
+      tr.innerHTML = `<td class="l"><div class="app">${iconHTML(a)}<span class="nm"></span>${a.system ? '<span class="tag">system</span>' : ""}</div></td>
+        <td class="ri"></td><td class="ro"></td><td><canvas class="spark"></canvas></td><td class="rt"></td>`;
+      tr.querySelector(".nm").textContent = a.name;
+      tr.querySelector(".nm").title = a.name;
+      tr.addEventListener("click", () => selectApp(a.key));
+      S.rows.set(a.key, tr);
+    }
+    tr.classList.toggle("selected", a.key === S.sel);
+    tr.classList.toggle("idle", a.in + a.out === 0);
+    tr.querySelector(".ri").innerHTML = a.in ? fmtRate(a.in) : '<span class="zero">–</span>';
+    tr.querySelector(".ro").innerHTML = a.out ? fmtRate(a.out) : '<span class="zero">–</span>';
+    tr.querySelector(".rt").textContent = `${fmtBytes(a.tot_in)} / ${fmtBytes(a.tot_out)}`;
+    drawSpark(tr.querySelector("canvas"), a.spark_in, a.spark_out);
+    tb.appendChild(tr);
+  }
+  for (const [k, tr] of S.rows) if (!seen.has(k)) { tr.remove(); }
+  $("#appsEmpty").style.display = list.length ? "none" : "block";
+  $("#appsEmpty").textContent = apps.length ? "No apps match the current filters." : "Waiting for network activity…";
+}
+
+function selectApp(key) {
+  if (S.sel === key) return;
+  S.sel = key; store.set("sel", key);
+  S.selHist = null; appCanvas._hover = null;
+  $("#connBody").innerHTML = "";
+  renderDetail(true);
+  tick(true);
+}
+
+let detIconKey = null;
+function renderDetail(force) {
+  const s = S.snap;
+  const app = s && S.sel ? s.apps.find(a => a.key === S.sel) : null;
+  $("#detEmpty").style.display = app ? "none" : "block";
+  $("#detBody").style.display = app ? "block" : "none";
+  if (!app) return;
+  if (force || detIconKey !== app.key) {
+    $("#detIcon").innerHTML = iconHTML(app, true);
+    $("#detName").textContent = app.name;
+    detIconKey = app.key;
+  }
+  $("#detSub").textContent = (app.system ? "System service · " : "") + (app.idle < 3 ? "active now" : `last traffic ${fmtDur(app.idle)} ago`);
+  $("#dNowIn").textContent = fmtRate(app.in);
+  $("#dNowOut").textContent = fmtRate(app.out);
+  $("#dTotIn").textContent = fmtBytes(app.tot_in);
+  $("#dTotOut").textContent = fmtBytes(app.tot_out);
+  const h = S.selHist;
+  if (h && h.t.length) {
+    const tEnd = h.t[h.t.length - 1]; let si = 0, so = 0, n = 0;
+    for (let i = h.t.length - 1; i >= 0 && h.t[i] > tEnd - 60; i--) { si += h.in[i]; so += h.out[i]; n++; }
+    $("#dAvgIn").textContent = fmtRate(si / Math.max(n, 1));
+    $("#dAvgOut").textContent = fmtRate(so / Math.max(n, 1));
+  } else { $("#dAvgIn").textContent = "–"; $("#dAvgOut").textContent = "–"; }
+  renderAppChart();
+  renderRecBox(app);
+  renderConns();
+}
+
+let recBoxMode = null;
+function renderRecBox(app) {
+  const box = $("#recBox"), rec = S.snap.recording;
+  const mode = rec ? (rec.key === app.key ? "rec-this" : "rec-other") : "idle";
+  if (mode !== recBoxMode || box.dataset.key !== app.key) {
+    recBoxMode = mode; box.dataset.key = app.key;
+    box.classList.toggle("on", mode === "rec-this");
+    if (mode === "idle") {
+      box.innerHTML = `<div class="row">
+          <input id="recLabel" placeholder="Label, e.g. “${esc(app.name)} video call”" maxlength="80">
+          <button class="btn rec" id="recStart">● Start recording</button>
+        </div>
+        <div class="hint">Start your call first, then press record. Every second of ${esc(app.name)}’s traffic is captured until you stop. Recordings are saved below for side-by-side comparison.</div>`;
+      $("#recStart").onclick = async () => {
+        try { await api("/api/record/start", { key: app.key, label: $("#recLabel").value }); tick(true); }
+        catch (e) { alert(e.message); }
+      };
+      $("#recLabel").onkeydown = e => { if (e.key === "Enter") $("#recStart").click(); };
+    } else if (mode === "rec-this") {
+      box.innerHTML = `<div class="row" style="justify-content:space-between">
+          <div class="row"><span class="recdot"></span><b>Recording</b> <span id="recLbl" class="ink2"></span> <span class="num" id="recTime"></span></div>
+          <div class="row"><button class="btn" id="recDiscard">Discard</button><button class="btn primary" id="recStop">■ Stop &amp; save</button></div>
+        </div>
+        <div class="hint num" id="recStats"></div>`;
+      $("#recStop").onclick = () => stopRec(false);
+      $("#recDiscard").onclick = () => { if (confirm("Discard this recording?")) stopRec(true); };
+    } else {
+      box.innerHTML = `<div class="row" style="justify-content:space-between">
+          <div class="row"><span class="recdot"></span><span>Recording <b id="recOther"></b> in progress</span></div>
+          <button class="btn" id="recStop2">■ Stop &amp; save</button></div>`;
+      $("#recStop2").onclick = () => stopRec(false);
+    }
+  }
+  if (mode === "rec-this") {
+    $("#recLbl").textContent = "“" + rec.label + "”";
+    $("#recTime").textContent = fmtDur(rec.elapsed);
+    $("#recStats").textContent = `avg ↓ ${fmtRate(rec.avg_in)}   ↑ ${fmtRate(rec.avg_out)}   ·   data so far ${fmtBytes(rec.bytes_in + rec.bytes_out)}`;
+  } else if (mode === "rec-other") {
+    $("#recOther").textContent = `${rec.name} (${fmtDur(rec.elapsed)})`;
+  }
+}
+async function stopRec(discard) {
+  try {
+    const r = await api("/api/record/stop", { discard });
+    if (r.session) await loadRecordings();
+    tick(true);
+  } catch (e) { alert(e.message); }
+}
+
+function renderConns() {
+  const sel = S.snap.selected, tb = $("#connBody");
+  if (!sel) { tb.innerHTML = ""; return; }
+  if (!sel.conns.length) { tb.innerHTML = `<tr><td colspan="6" class="empty" style="padding:14px">No connections with traffic in the last minute.</td></tr>`; return; }
+  tb.innerHTML = sel.conns.map(c => `<tr>
+    <td class="l">${esc(c.proto.replace(/[46]$/, ""))}</td>
+    <td class="l num" title="via ${esc(c.iface)} · local ${esc(c.local)}${c.state ? " · " + esc(c.state) : ""}">${esc(c.remote)}</td>
+    <td class="l host" title="${esc(c.host)}">${esc(c.host) || '<span class="zero">–</span>'}</td>
+    <td>${c.in ? fmtRate(c.in) : '<span class="zero">–</span>'}</td>
+    <td>${c.out ? fmtRate(c.out) : '<span class="zero">–</span>'}</td>
+    <td>${fmtBytes(c.tot_in + c.tot_out)}</td></tr>`).join("");
+}
+
+function renderRecordings() {
+  const list = [...S.recordings].sort((a, b) => b.started - a.started);
+  const tb = $("#recs tbody");
+  $("#recsEmpty").style.display = list.length ? "none" : "block";
+  $("#recs").style.display = list.length ? "table" : "none";
+  if (!list.length) { tb.innerHTML = ""; return; }
+  const maxAvg = Math.max(...list.map(r => Math.max(r.avg_in, r.avg_out)), 1);
+  const perHour = r => (r.bytes_in + r.bytes_out) / r.duration * 3600;
+  const minPH = list.length > 1 ? Math.min(...list.map(perHour)) : null;
+  tb.innerHTML = list.map(r => `<tr data-id="${esc(r.id)}">
+    <td class="l"><div style="font-weight:600">${esc(r.label)}</div><div class="muted" style="font-size:12px">${esc(r.app)} · ${fmtWhen(r.started)}</div></td>
+    <td>${fmtDur(r.duration)}</td>
+    <td class="l cmpcell">
+      <div class="line"><span class="v num">↓ ${fmtRate(r.avg_in)}</span><span class="b"><div class="cmpbar down" style="width:${(r.avg_in / maxAvg * 100).toFixed(1)}%"></div></span></div>
+      <div class="line"><span class="v num">↑ ${fmtRate(r.avg_out)}</span><span class="b"><div class="cmpbar up" style="width:${(r.avg_out / maxAvg * 100).toFixed(1)}%"></div></span></div>
+    </td>
+    <td><div>${fmtRate(r.peak_in)}</div><div>${fmtRate(r.peak_out)}</div></td>
+    <td>${fmtBytes(r.bytes_in + r.bytes_out)}</td>
+    <td>${fmtBytes(perHour(r))}/h${minPH !== null && perHour(r) === minPH ? '<div class="best">✓ lowest</div>' : ""}</td>
+    <td><canvas class="curve"></canvas></td>
+    <td style="white-space:nowrap"><button class="btn ghost" data-act="rename" title="Rename">✎</button><button class="btn ghost" data-act="del" title="Delete">✕</button></td>
+  </tr>`).join("");
+  tb.querySelectorAll("tr").forEach((tr, i) => {
+    const r = list[i];
+    drawCurve(tr.querySelector("canvas"), r.curve_in || [], r.curve_out || []);
+    tr.querySelector('[data-act="del"]').onclick = async () => {
+      if (!confirm(`Delete recording “${r.label}”?`)) return;
+      await api("/api/recordings/delete", { id: r.id }); loadRecordings();
+    };
+    tr.querySelector('[data-act="rename"]').onclick = async () => {
+      const label = prompt("Rename recording", r.label);
+      if (label && label.trim()) { await api("/api/recordings/rename", { id: r.id, label }); loadRecordings(); }
+    };
+  });
+}
+
+async function loadRecordings() { try { S.recordings = await api("/api/recordings"); renderRecordings(); } catch {} }
+async function loadSpeedtests() { try { S.speedtests = await api("/api/speedtests"); renderSpeedResults(); } catch {} }
+
+/* ---------------- loop ---------------- */
+let timer = null, inflight = false;
+async function tick(immediate) {
+  if (immediate !== true && inflight) return;
+  clearTimeout(timer);
+  inflight = true;
+  const sel = S.sel;
+  try {
+    const [snap, th, sh] = await Promise.all([
+      api("/api/snapshot" + (sel ? "?sel=" + encodeURIComponent(sel) : "")),
+      api("/api/history?key=__total__"),
+      sel ? api("/api/history?key=" + encodeURIComponent(sel)) : null,
+    ]);
+    if (sel !== S.sel) return; // selection changed mid-flight
+    S.snap = snap; S.totalHist = th; S.selHist = sh;
+    $("#banner").style.display = snap.nettop_ok || snap.uptime < 5 ? "none" : "block";
+    $("#banner").textContent = "Waiting for nettop to deliver data… If this persists, make sure Terminal is allowed to run it.";
+    renderHeader(); renderWifi(); renderSpeed(); renderTotalChart(); renderApps(); renderDetail();
+  } catch (e) {
+    $("#live").classList.add("off");
+    $("#liveTxt").textContent = "server not reachable — is wifimon.py running?";
+  } finally {
+    inflight = false;
+    timer = setTimeout(tick, 1000);
+  }
+}
+
+/* ---------------- controls ---------------- */
+function syncControls() {
+  document.querySelectorAll("#unitSeg button").forEach(b => b.classList.toggle("on", b.dataset.u === S.unit));
+  $("#hideSys").checked = S.hideSys; $("#showIdle").checked = S.showIdle;
+  document.querySelectorAll("#apps th.sort").forEach(th => th.classList.toggle("sorted", th.dataset.sort === S.sort));
+}
+$("#unitSeg").addEventListener("click", e => {
+  const u = e.target.dataset.u; if (!u) return;
+  S.unit = u; store.set("unit", u); syncControls();
+  if (S.snap) { renderHeader(); renderTotalChart(); renderApps(); renderDetail(); renderRecordings(); }
+});
+$("#hideSys").onchange = e => { S.hideSys = e.target.checked; store.set("hideSys", S.hideSys); S.snap && renderApps(); };
+$("#showIdle").onchange = e => { S.showIdle = e.target.checked; store.set("showIdle", S.showIdle); S.snap && renderApps(); };
+$("#search").oninput = e => { S.filter = e.target.value; S.snap && renderApps(); };
+document.querySelectorAll("#apps th.sort").forEach(th => th.onclick = () => {
+  S.sort = S.sort === th.dataset.sort ? "now" : th.dataset.sort; store.set("sort", S.sort); syncControls(); S.snap && renderApps();
+});
+$("#speedBtn").onclick = async () => { try { await api("/api/speedtest", {}); tick(true); } catch (e) { alert(e.message); } };
+$("#resetBtn").onclick = async () => { if (confirm("Reset all total counters to zero?")) { await api("/api/reset", {}); tick(true); } };
+window.addEventListener("resize", () => { if (S.snap) { renderTotalChart(); renderAppChart(); } });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (S.snap) { renderTotalChart(); renderApps(); renderAppChart(); renderRecordings(); }
+});
+
+syncControls();
+loadRecordings();
+loadSpeedtests();
+tick(true);
+</script>
+</body>
+</html>

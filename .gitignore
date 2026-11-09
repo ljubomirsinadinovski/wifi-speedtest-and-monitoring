@@ -1,0 +1,16 @@
+# Personal measurement data written at runtime
+recordings.json
+speedtests.json
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Local editor / agent settings
+.claude/
+.vscode/
+.idea/
